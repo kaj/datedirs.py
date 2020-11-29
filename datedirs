@@ -1,0 +1,47 @@
+#! /usr/bin/env python3
+from os import makedirs, path, utime, unlink
+from shutil import move
+from glob import glob
+from PIL import Image
+from PIL.ExifTags import TAGS
+from datetime import datetime
+from filecmp import cmp
+from sys import argv
+
+basedir = "/home/kaj/Bilder/foto";
+
+bases = [b + '/' for b in argv[1:]] or ['']
+
+for srcbase in bases:
+    filenames = glob(srcbase + '*.JPG') + glob(srcbase + '*.jpg')
+    for filename in filenames:
+        try:
+            i = Image.open(filename)
+            info = i._getexif()
+            ret = {}
+            for tag, value in info.items():
+                decoded = TAGS.get(tag, tag)
+                ret[decoded] = value
+            d = datetime.strptime('%s' % (ret.get('DateTimeOriginal') or
+                                          ret.get('DateTime')),
+                                  u'%Y:%m:%d %H:%M:%S')
+            todir = '%s/%04d/%02d/%02d' % (basedir, d.year, d.month, d.day)
+            files = glob(filename.replace('.JPG', '*').replace('.jpg', '*'))
+            print(filename, '->', todir, files)
+            if not path.exists(todir):
+                print("Creating dir", todir)
+                makedirs(todir)
+            for f in files:
+                target = todir + '/' + path.basename(f)
+                if path.exists(target):
+                    if cmp(f, target, shallow=False):
+                        print("File allready copied: %s" % target)
+                        unlink(f)
+                    else:
+                        print("File exists but differs: %s vs %s" % (target, f))
+                else:
+                    move(f, todir)
+            #utime(todir + '/' + filename, (None, d))
+        except Exception as err:
+            print('Failed to handle %s: %r' % (filename, err))
+        #    raise err
